@@ -38,7 +38,7 @@ class ElasticsearchFull < Formula
     end
     bin.env_script_all_files(libexec/"bin", JAVA_HOME: Formula["openjdk"].opt_prefix)
 
-    system "codesign", "-f", "-s", "-", "#{libexec}/modules/x-pack-ml/platform/darwin-x86_64/controller.app", "--deep"
+    system "codesign", "-f", "-s", "-", "#{libexec}/modules/x-pack-ml/platform/darwin-aarch64/controller.app", "--deep"
   end
 
   def post_install

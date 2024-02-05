@@ -1,18 +1,15 @@
 class ElasticsearchFull < Formula
   desc "Distributed search & analytics engine"
   homepage "https://www.elastic.co/products/elasticsearch"
-  url "https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-7.17.4-darwin-x86_64.tar.gz?tap=elastic/homebrew-tap"
-  version "7.17.4"
-  sha256 "6d2343171a0d384910312220aae3512f45e3d3d900557b736c139b8363a008e4"
+  url "https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-7.17.17-darwin-aarch64.tar.gz?tap=tomchuk/homebrew-tap"
+  version "7.17.17"
+  sha256 "979a8937ddebbc943904ae68c4f54f981a5de36ddc84416b51125544eb41c9f6"
   conflicts_with "elasticsearch"
-
-  def cluster_name
-    "elasticsearch_#{ENV["USER"]}"
-  end
+  depends_on "openjdk"
 
   def install
     # Install everything else into package directory
-    libexec.install "bin", "config", "jdk.app", "lib", "modules"
+    libexec.install "bin", "config", "lib", "modules"
 
     inreplace libexec/"bin/elasticsearch-env",
               "if [ -z \"$ES_PATH_CONF\" ]; then ES_PATH_CONF=\"$ES_HOME\"/config; fi",
@@ -21,7 +18,7 @@ class ElasticsearchFull < Formula
     # Set up Elasticsearch for local development:
     inreplace "#{libexec}/config/elasticsearch.yml" do |s|
       # 1. Give the cluster a unique name
-      s.gsub!(/#\s*cluster\.name\: .*/, "cluster.name: #{cluster_name}")
+      s.gsub!(/#\s*cluster\.name\: .*/, "cluster.name: es")
 
       # 2. Configure paths
       s.sub!(%r{#\s*path\.data: /path/to.+$}, "path.data: #{var}/lib/elasticsearch/")
@@ -39,15 +36,14 @@ class ElasticsearchFull < Formula
 
       bin.install libexec/"bin"/f
     end
-    bin.env_script_all_files(libexec/"bin", {})
+    bin.env_script_all_files(libexec/"bin", JAVA_HOME: Formula["openjdk"].opt_prefix)
 
     system "codesign", "-f", "-s", "-", "#{libexec}/modules/x-pack-ml/platform/darwin-x86_64/controller.app", "--deep"
-    system "find", "#{libexec}/jdk.app/Contents/Home/bin", "-type", "f", "-exec", "codesign", "-f", "-s", "-", "{}", ";"
   end
 
   def post_install
     # Make sure runtime directories exist
-    (var/"lib/elasticsearch/#{cluster_name}").mkpath
+    (var/"lib/elasticsearch/es").mkpath
     (var/"log/elasticsearch").mkpath
     ln_s etc/"elasticsearch", libexec/"config"
     (var/"elasticsearch/plugins").mkpath
@@ -56,8 +52,8 @@ class ElasticsearchFull < Formula
 
   def caveats
     s = <<~EOS
-      Data:    #{var}/lib/elasticsearch/#{cluster_name}/
-      Logs:    #{var}/log/elasticsearch/#{cluster_name}.log
+      Data:    #{var}/lib/elasticsearch/es/
+      Logs:    #{var}/log/elasticsearch/es.log
       Plugins: #{var}/elasticsearch/plugins/
       Config:  #{etc}/elasticsearch/
     EOS
@@ -65,36 +61,11 @@ class ElasticsearchFull < Formula
     s
   end
 
-  plist_options :manual => "elasticsearch"
-
-  def plist
-    <<~EOS
-      <?xml version="1.0" encoding="UTF-8"?>
-      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-      <plist version="1.0">
-        <dict>
-          <key>KeepAlive</key>
-          <false/>
-          <key>Label</key>
-          <string>#{plist_name}</string>
-          <key>ProgramArguments</key>
-          <array>
-            <string>#{opt_bin}/elasticsearch</string>
-          </array>
-          <key>EnvironmentVariables</key>
-          <dict>
-          </dict>
-          <key>RunAtLoad</key>
-          <true/>
-          <key>WorkingDirectory</key>
-          <string>#{var}</string>
-          <key>StandardErrorPath</key>
-          <string>#{var}/log/elasticsearch.log</string>
-          <key>StandardOutPath</key>
-          <string>#{var}/log/elasticsearch.log</string>
-        </dict>
-      </plist>
-    EOS
+  service do
+    run opt_bin/"elasticsearch"
+    working_dir var
+    log_path var/"log/elasticsearch.log"
+    error_log_path var/"log/elasticsearch.log"
   end
 
   test do
